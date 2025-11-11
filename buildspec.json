@@ -1,0 +1,46 @@
+{
+    "dependencies": {
+        "obs-studio": {
+            "version": "31.1.1",
+            "baseUrl": "https://github.com/obsproject/obs-studio/archive/refs/tags",
+            "label": "OBS sources",
+            "hashes": {
+                "macos": "39751f067bacc13d44b116c5138491b5f1391f91516d3d590d874edd21292291",
+                "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
+            }
+        },
+        "prebuilt": {
+            "version": "2025-07-11",
+            "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+            "label": "Pre-Built obs-deps",
+            "hashes": {
+                "macos": "495687e63383d1a287684b6e2e9bfe246bb8f156fe265926afb1a325af1edd2a",
+                "windows-x64": "c8c642c1070dc31ce9a0f1e4cef5bb992f4bff4882255788b5da12129e85caa7"
+            }
+        },
+        "qt6": {
+            "version": "2025-02-04",
+            "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+            "label": "Pre-Built Qt6",
+          "hashes": {
+            "macos": "9472224e6f927cd409f9c3fcb53389e3b80f613ca7c4b62c02fae51cf0b2f941",
+            "windows-x64": "cf6a5223bfea04dccec3bbfbdcdc964933404fc3eda9c3f374bc4ab8c98d8c7e"
+          }
+        }
+    },
+    "platformConfig": {
+        "macos": {
+            "bundleId": "com.royshilkrot.obs-cleanstream"
+        }
+    },
+    "name": "obs-cleanstream",
+    "version": "0.2.0",
+    "author": "Roy Shilkrot",
+    "website": "https://github.com/locaal-ai/obs-cleanstream/",
+    "email": "roy.shil@gmail.com",
+    "uuids": {
+        "macosPackage": "b6f62fcf-36d3-4006-8b9a-dc0df1875dda",
+        "macosInstaller": "0e828987-688e-4510-9aee-d39605ce2332",
+        "windowsApp": "39bf1865-9d79-4754-8ce2-150132f47012"
+    }
+}

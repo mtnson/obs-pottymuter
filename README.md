@@ -1,132 +1,152 @@
-# Cleanstream - Live Speech Filter using AI
+# PottyMuter — mute unwanted words in your live audio
 
-CleanStream is an OBS plugin that cleans live audio streams from unwanted words and utterances using real-time local AI.
+PottyMuter is an OBS Studio audio filter that runs a local AI speech model
+(Whisper) in real time, recognizes words *before* they reach your viewers,
+and replaces unwanted ones (profanity, filler words — anything you
+configure) with silence, a beep or a custom sound.
 
-<div align="center">
+PottyMuter is **Russian-first**: out of the box it ships a morphology-aware
+Russian profanity list, Cyrillic-friendly text preprocessing and model
+defaults tuned for Russian speech.
 
-[![GitHub](https://img.shields.io/github/license/locaal-ai/obs-cleanstream)](https://github.com/locaal-ai/obs-cleanstream/blob/main/LICENSE)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/locaal-ai/obs-cleanstream/push.yaml)](https://github.com/locaal-ai/obs-cleanstream/actions/workflows/push.yaml)
-[![Total downloads](https://img.shields.io/github/downloads/locaal-ai/obs-cleanstream/total)](https://github.com/locaal-ai/obs-cleanstream/releases)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/locaal-ai/obs-cleanstream)](https://github.com/locaal-ai/obs-cleanstream/releases)
+> **This is a fork of [obs-cleanstream](https://github.com/locaal-ai/obs-cleanstream)** by
+> [Roy Shilkrot](https://github.com/royshil) ([locaal-ai](https://github.com/locaal-ai)),
+> licensed under **GPL-2.0**. The upstream project has not seen active
+> maintenance recently; this fork continues the idea with a focus on the
+> Russian language, recognition accuracy/speed, and bug fixes.
+> All credit for the original concept and code goes to the upstream authors —
+> see [Attribution](#attribution--license).
 
-</div>
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/mtnson/obs-cleanstream/push.yaml)](https://github.com/mtnson/obs-cleanstream/actions/workflows/push.yaml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mtnson/obs-cleanstream)](https://github.com/mtnson/obs-cleanstream/releases)
+
+## What this fork changes / plans to change
+
+- [x] Plugin renamed to **PottyMuter** (user-facing name, filter ID, packaging)
+- [x] CI builds feature branches so every push is verifiable
+- [ ] Russian profanity list by default (root-based regex with word-boundary
+      handling; handles ё→е spelling variants, case, stretched forms)
+- [ ] Unicode-aware Cyrillic preprocessing (lowercasing, ё→е) before regex
+- [ ] Russian-tuned defaults: `Whisper Small q5 (181Mb)`, language `ru`,
+      silence on match
+- [ ] Recognition accuracy and inference speed improvements for Russian
+- [ ] Bug fixes for issues found with the original filter
+- [ ] Curated model catalog (Russian-relevant models only)
+- [ ] Full `ru-RU` localization (alongside the upstream `en-US`)
 
 ## Usage
 
-- Add the plugin to any audio-generating source
-- Adjust the settings
-
-<div align="center">
-
-<a href="https://youtu.be/vgcK3K654FU"><img src="https://github.com/locaal-ai/obs-cleanstream/assets/441170/59f0038a-4e0e-47ed-afb8-110acd463146" width="40%" /></a>
-
-</div>
+- Add the filter to any audio-generating source in OBS
+- Enable advanced settings and pick your Whisper model, language and
+  detection regex
+- Live audio now goes through the filter before being broadcast
 
 ## Download
-Check out the [latest releases](https://github.com/locaal-ai/obs-cleanstream/releases) for downloads and install instructions.
+
+Check out the
+[latest releases](https://github.com/mtnson/obs-cleanstream/releases)
+for downloads and install instructions.
+
+## Requirements
+
+- OBS version 32+ → plugin versions 0.2.0+
+- OBS version 30+ → plugin versions 0.0.4+
+- OBS version 29 → plugin versions 0.0.2+
+- OBS version 28 → plugin versions 0.0.1
+
+Older OBS versions are not supported — the plugin uses newer APIs.
 
 ## Method
-This video walkthrough (YouTube) will explain various parts of the code if you're looking to learn from what I've discovered.
 
-<div align="center">
-    <a href="https://youtu.be/HdSI3sUKwsY" target="_blank">
-        <img width="480" src="https://img.youtube.com/vi/HdSI3sUKwsY/maxresdefault.jpg" />
-    </a>
-</div>
-
-### Audio processing
-
-The filter is running Whisper in real-time to detect words in small chunks of the incoming audio. For each chunck it produces a decision which then determines if the audio rendering will play the original audio or e.g. a beep or silence. The processing happens in a separate thread and therefore there's a built-in lag/delay mechanism to make sure the audio decision (play, beep, silence) is in-sync with the actual audio playback based on the timestamp. The built-in delay is adaptive since some systems (e.g. with CUDA) can make faster decisions.
-
-Here is an illustration of the process:
+Whisper runs in real time on small chunks of the incoming audio. For each
+chunk it produces a decision that determines whether the audio output plays
+the original audio or e.g. a beep or silence. Processing happens in a
+separate thread, with a built-in adaptive delay to keep the decision
+(play/beep/silence) in sync with the actual audio playback based on
+timestamps — the delay adapts because some systems (e.g. with CUDA) decide
+faster.
 
 ![alt text](docs/image.png)
 
-## Requirements
-- OBS version 32+ use plugin versions 0.2.0+
-- OBS version 30+ use plugin versions 0.0.4+
-- OBS version 29 use plugin versions 0.0.2+
-- OBS version 28 use plugin versions 0.0.1
-
-We do not support older versions of OBS since the plugin is using newer APIs.
-
-## Introduction
-CleanStream is an OBS plugin that cleans live audio streams from unwanted words and utterances, such as "uh"s and "um"s, and other words that you can configure, like profanity.
-
-See our [resource on the OBS Forums](https://obsproject.com/forum/resources/cleanstream-remove-uhs-ums-profanity-in-your-live-stream-or-recording-with-ai.1732/) for additional information.
-
-It is using a neural network ([OpenAI Whisper](https://github.com/openai/whisper)) to predict in real time the speech and remove the unwanted words.
-
-It's using the [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) project from [ggerganov](https://github.com/ggerganov) to run the Whisper network in a very efficient way.
-
-But it is working and you can try it out. *Please report any issues you find.* 🙏 ([submit an issue](https://github.com/locaal-ai/obs-cleanstream/issues) or meet us on https://discord.gg/KbjGU2vvUz)
-
-We're working on improving the plugin and adding more features. If you have any ideas or suggestions, please open an issue.
+It uses [OpenAI Whisper](https://github.com/openai/whisper) for speech
+recognition, run locally and efficiently via
+[Whisper.cpp](https://github.com/ggerganov/whisper.cpp), with
+[Silero VAD](https://github.com/snakers4/silero-vad) (ONNX) to skip silent
+chunks.
 
 ## Building
 
-The plugin was built and tested on Mac OSX, Windows and Ubuntu Linux. Help is appreciated in building on other OSs and packages.
+The build pipelines are driven by CI, but every target can be built locally
+with the very same scripts.
 
-The building pipelines in CI take care of the heavy lifting. Use them in order to build the plugin locally.
-
-Start by cloning this repo to a directory of your choice.
-
-### Mac OSX
-
-Set the `MACOS_ARCH` environment variable to `x86_64` or `arm64` as appropriate for the architecture you want to build for
+Start by cloning this repository (with submodules):
 
 ```sh
-$ export MACOS_ARCH="arm64"
-```
-
-Using the CI pipeline scripts, locally you would just call the zsh script.
-
-```sh
-$ ./.github/scripts/build-macos.zsh
-```
-
-#### Install
-The above script should succeed and the plugin files will reside in the `./release` folder off of the root. Copy the files to the OBS directory e.g. `/Users/you/Library/Application Support/obs-studio/obs-plugins`.
-
-To get `.pkg` installer file, run
-```sh
-$ ./.github/scripts/package-macos.zsh -c Release -t macos-x86_64
-```
-(Note that maybe the outputs in the e.g. `build_x86_64` will be in the `Release` folder and not the `install` folder like `pakage-macos.zsh` expects, so you will need to rename the folder from `build_x86_64/Release` to `build_x86_64/install`)
-
-### Linux (Ubuntu-ish)
-
-Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd` to use the appropriate pre-built whisper libraries. `nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and all variants include Vulkan, OpenCL and OpenBLAS support
-
-```sh
-$ export ACCELERATION="nvidia"
-```
-
-Use the CI scripts again
-```sh
-$ ./.github/scripts/build-linux.sh
+git clone --recursive https://github.com/mtnson/obs-cleanstream.git
 ```
 
 ### Windows
 
-Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd` to use the appropriate pre-built whisper libraries. `nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and all variants include Vulkan and OpenBLAS support
+Prerequisites: PowerShell 7, Visual Studio 2022 Build Tools (C++ workload,
+includes CMake). Inno Setup 6 is only needed for installer packaging.
+
+Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd`.
+`nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and
+all variants include Vulkan and OpenBLAS support.
 
 ```powershell
-> $env:ACCELERATION = "nvidia"
-```
-
-Use the CI scripts again, for example:
-
-```powershell
+> $env:ACCELERATION = "generic"
 > .github/scripts/Build-Windows.ps1 -Configuration Release
 ```
 
-The build should exist in the `./release` folder off the root. You can manually install the files in the OBS directory.
+The first configure downloads dependencies (`obs-deps`, Qt6, OBS sources)
+into `.deps/` automatically — one-time cost, cached afterwards.
+
+The build lands in the `./release` folder off the root. Install manually:
 
 ```powershell
 > Copy-Item -Recurse -Force "release\Release\*" -Destination "C:\Program Files\obs-studio\"
 ```
 
-## Star History
+### macOS
 
-[![Star History Chart](https://api.star-history.com/svg?repos=locaal-ai/obs-cleanstream&type=Date)](https://star-history.com/#locaal-ai/obs-cleanstream&Date)
+Set `MACOS_ARCH` to `x86_64` or `arm64`, then:
+
+```sh
+export MACOS_ARCH="arm64"
+./.github/scripts/build-macos.zsh
+```
+
+Copy the plugin files from `./release` to
+`/Users/you/Library/Application Support/obs-studio/obs-plugins`.
+
+### Linux (Ubuntu-ish)
+
+Distributions binaries: `generic`, `nvidia` (CUDA) or `amd` (ROCm/hipblas);
+all include Vulkan, OpenCL and OpenBLAS support.
+
+```sh
+export ACCELERATION="nvidia"
+./.github/scripts/build-linux.sh
+```
+
+## Attribution & License
+
+PottyMuter is built on **obs-cleanstream** by
+[Roy Shilkrot](https://github.com/royshil):
+
+- Upstream project: <https://github.com/locaal-ai/obs-cleanstream>
+- Author: Roy Shilkrot ([roy.shil@gmail.com](mailto:roy.shil@gmail.com))
+- Video walkthrough of the code: <https://youtu.be/HdSI3sUKwsY>
+- Original OBS Forums resource:
+  <https://obsproject.com/forum/resources/cleanstream-remove-uhs-ums-profanity-in-your-live-stream-or-recording-with-ai.1732/>
+
+Acknowledgments kept from upstream:
+
+- [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) by
+  [ggerganov](https://github.com/ggerganov) — efficient local Whisper inference
+- [Silero VAD](https://github.com/snakers4/silero-vad) — voice activity detection
+
+Licensed under **GPL-2.0** — the same license as the original project, as
+required. The license text is in [LICENSE](LICENSE); original copyright
+notices are preserved in all source files.

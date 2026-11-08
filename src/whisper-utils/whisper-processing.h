@@ -15,6 +15,6 @@ enum DetectionResult {
 
 void whisper_loop(void *data);
 struct whisper_context *init_whisper_context(const std::string &model_path_in,
-					     struct cleanstream_data *gf);
+					     struct pottymuter_data *gf);
 
 #endif // WHISPER_PROCESSING_H

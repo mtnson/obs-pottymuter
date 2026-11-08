@@ -12,7 +12,7 @@
 #include <string>
 #include <thread>
 
-void update_whisper_model(struct cleanstream_data *gf, obs_data_t *s)
+void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 {
 	// update the whisper model path
 	std::string new_model_path = obs_data_get_string(s, "whisper_model_path");
@@ -88,7 +88,7 @@ void update_whisper_model(struct cleanstream_data *gf, obs_data_t *s)
 	}
 }
 
-void shutdown_whisper_thread(struct cleanstream_data *gf)
+void shutdown_whisper_thread(struct pottymuter_data *gf)
 {
 	obs_log(gf->log_level, "shutdown_whisper_thread");
 	if (gf->whisper_context != nullptr) {
@@ -105,7 +105,7 @@ void shutdown_whisper_thread(struct cleanstream_data *gf)
 	}
 }
 
-void start_whisper_thread_with_path(struct cleanstream_data *gf, const std::string &path)
+void start_whisper_thread_with_path(struct pottymuter_data *gf, const std::string &path)
 {
 	obs_log(gf->log_level, "start_whisper_thread_with_path: %s", path.c_str());
 	std::lock_guard<std::mutex> lock(gf->whisper_ctx_mutex);

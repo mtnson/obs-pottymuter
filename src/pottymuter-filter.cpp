@@ -18,12 +18,12 @@
 
 #include <whisper.h>
 
-#include "cleanstream-filter.h"
+#include "pottymuter-filter.h"
 #include "model-utils/model-downloader.h"
 #include "whisper-utils/whisper-language.h"
 #include "whisper-utils/whisper-processing.h"
 #include "whisper-utils/whisper-utils.h"
-#include "cleanstream-filter-data.h"
+#include "pottymuter-filter-data.h"
 
 #include "plugin-support.h"
 
@@ -41,7 +41,7 @@
 
 void whisper_loop(void *data);
 
-void enumerate_gpu_devices(cleanstream_data *gf)
+void enumerate_gpu_devices(pottymuter_data *gf)
 {
 #ifdef WHISPER_DYNAMIC_BACKENDS
 	// Load CPU backends
@@ -96,13 +96,13 @@ void enumerate_gpu_devices(cleanstream_data *gf)
 	};
 }
 
-struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_data *audio)
+struct obs_audio_data *pottymuter_filter_audio(void *data, struct obs_audio_data *audio)
 {
 	if (data == nullptr) {
 		return audio;
 	}
 
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 
 	if (!gf->active) {
 		return audio;
@@ -124,7 +124,7 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 						audio->frames * sizeof(float));
 			}
 			// push audio packet info (timestamp/frame count) to info deque
-			struct cleanstream_audio_info info = {0};
+			struct pottymuter_audio_info info = {0};
 			info.frames = audio->frames;       // number of frames in this packet
 			info.timestamp = audio->timestamp; // timestamp of this packet
 			deque_push_back(&gf->info_buffer, &info, sizeof(info));
@@ -144,7 +144,7 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 			std::lock_guard<std::mutex> lock(gf->whisper_buf_mutex);
 			// pop from input buffers to get audio packet info
 			while (temporary_buffers[0].size() < num_frames_needed) {
-				struct cleanstream_audio_info info_out = {0};
+				struct pottymuter_audio_info info_out = {0};
 				// pop from input buffers to get audio packet info
 				deque_pop_front(&gf->info_buffer, &info_out, sizeof(info_out));
 				if (timestamp == 0) {
@@ -241,16 +241,16 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 	return NULL;
 }
 
-const char *cleanstream_name(void *unused)
+const char *pottymuter_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
 	return MT_("PottyMuterAudioFilter");
 }
 
-void cleanstream_destroy(void *data)
+void pottymuter_destroy(void *data)
 {
-	obs_log(LOG_INFO, "cleanstream_destroy");
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	obs_log(LOG_INFO, "pottymuter_destroy");
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 
 	gf->active = false;
 
@@ -275,11 +275,11 @@ void cleanstream_destroy(void *data)
 	bfree(gf);
 }
 
-void cleanstream_update(void *data, obs_data_t *s)
+void pottymuter_update(void *data, obs_data_t *s)
 {
-	obs_log(LOG_DEBUG, "cleanstream_update");
+	obs_log(LOG_DEBUG, "pottymuter_update");
 
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 
 	gf->detect_regex = obs_data_get_string(s, "detect_regex");
 	gf->replace_sound = obs_data_get_int(s, "replace_sound");
@@ -324,15 +324,15 @@ void cleanstream_update(void *data, obs_data_t *s)
 		gf->whisper_params.length_penalty = (float)obs_data_get_double(s, "length_penalty");
 	}
 
-	obs_log(LOG_DEBUG, "cleanstream update finished");
+	obs_log(LOG_DEBUG, "pottymuter update finished");
 }
 
-void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
+void *pottymuter_create(obs_data_t *settings, obs_source_t *filter)
 {
-	obs_log(LOG_INFO, "cleanstream create");
+	obs_log(LOG_INFO, "pottymuter create");
 
-	void *data = bmalloc(sizeof(struct cleanstream_data));
-	struct cleanstream_data *gf = new (data) cleanstream_data();
+	void *data = bmalloc(sizeof(struct pottymuter_data));
+	struct pottymuter_data *gf = new (data) pottymuter_data();
 
 	// Get the number of channels for the input source
 	gf->channels = audio_output_get_channels(obs_get_audio());
@@ -409,26 +409,26 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 	enumerate_gpu_devices(gf);
 
 	// call the update function to set the whisper model
-	cleanstream_update(gf, settings);
+	pottymuter_update(gf, settings);
 
 	return gf;
 }
 
-void cleanstream_activate(void *data)
+void pottymuter_activate(void *data)
 {
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 	obs_log(LOG_INFO, "PottyMuter filter activated");
 	gf->active = true;
 }
 
-void cleanstream_deactivate(void *data)
+void pottymuter_deactivate(void *data)
 {
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 	obs_log(LOG_INFO, "PottyMuter filter deactivated");
 	gf->active = false;
 }
 
-void cleanstream_defaults(obs_data_t *s)
+void pottymuter_defaults(obs_data_t *s)
 {
 	// Profane words taken from https://en.wiktionary.org/wiki/Category:English_swear_words
 	obs_data_set_default_string(
@@ -471,7 +471,7 @@ void cleanstream_defaults(obs_data_t *s)
 	obs_data_set_default_bool(s, "enable_flash_attn", false);
 }
 
-void add_whisper_backend_group_properties(obs_properties_t *ppts, struct cleanstream_data *gf)
+void add_whisper_backend_group_properties(obs_properties_t *ppts, struct pottymuter_data *gf)
 {
 	// add a group for setting the whisper backend(s) to use
 	obs_properties_t *backend_group = obs_properties_create();
@@ -497,9 +497,9 @@ void add_whisper_backend_group_properties(obs_properties_t *ppts, struct cleanst
 	obs_property_set_long_description(enable_flash_attn, MT_("enable_flash_attn_tooltip"));
 }
 
-obs_properties_t *cleanstream_properties(void *data)
+obs_properties_t *pottymuter_properties(void *data)
 {
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 
 	obs_properties_t *ppts = obs_properties_create();
 
@@ -543,8 +543,8 @@ obs_properties_t *cleanstream_properties(void *data)
 		   obs_data_t *settings) {
 			UNUSED_PARAMETER(property);
 			UNUSED_PARAMETER(props);
-			struct cleanstream_data *gf_ =
-				static_cast<struct cleanstream_data *>(data_);
+			struct pottymuter_data *gf_ =
+				static_cast<struct pottymuter_data *>(data_);
 			// load the sound file and cache it
 			std::string replace_sound_path_ =
 				obs_data_get_string(settings, "replace_sound_path");

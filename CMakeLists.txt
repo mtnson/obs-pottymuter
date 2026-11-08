@@ -104,8 +104,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE vendor/nlohmann-json)
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.c
-          src/cleanstream-filter.cpp
-          src/cleanstream-filter.c
+          src/pottymuter-filter.cpp
+          src/pottymuter-filter.c
           src/audio-utils/read-audio-file.cpp
           src/model-utils/model-downloader.cpp
           src/model-utils/model-downloader-ui.cpp

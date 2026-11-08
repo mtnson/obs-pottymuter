@@ -1,5 +1,5 @@
-#ifndef CLEANSTREAM_FILTER_DATA_H
-#define CLEANSTREAM_FILTER_DATA_H
+#ifndef POTTYMUTER_FILTER_DATA_H
+#define POTTYMUTER_FILTER_DATA_H
 
 #include <obs.h>
 #include <string>
@@ -27,7 +27,7 @@ enum ReplaceSounds {
 };
 
 // Audio packet info
-struct cleanstream_audio_info {
+struct pottymuter_audio_info {
 	uint32_t frames;
 	uint64_t timestamp;
 };
@@ -38,7 +38,7 @@ struct gpu_device_info {
 	const char *device_description;
 };
 
-struct cleanstream_data {
+struct pottymuter_data {
 	obs_source_t *context; // obs input source
 	size_t channels;       // number of channels
 	uint32_t sample_rate;  // input sample rate

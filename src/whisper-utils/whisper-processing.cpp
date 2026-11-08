@@ -3,7 +3,7 @@
 #include <obs-module.h>
 
 #include "plugin-support.h"
-#include "cleanstream-filter-data.h"
+#include "pottymuter-filter-data.h"
 #include "whisper-processing.h"
 
 #include <algorithm>
@@ -22,7 +22,7 @@
 #include "whisper-utils.h"
 
 struct whisper_context *init_whisper_context(const std::string &model_path_in,
-					     struct cleanstream_data *gf)
+					     struct pottymuter_data *gf)
 {
 	std::string model_path = model_path_in;
 
@@ -44,8 +44,8 @@ struct whisper_context *init_whisper_context(const std::string &model_path_in,
 	whisper_log_set(
 		[](enum ggml_log_level level, const char *text, void *user_data) {
 			UNUSED_PARAMETER(level);
-			struct cleanstream_data *ctx =
-				static_cast<struct cleanstream_data *>(user_data);
+			struct pottymuter_data *ctx =
+				static_cast<struct pottymuter_data *>(user_data);
 			// remove trailing newline
 			char *text_copy = bstrdup(text);
 			text_copy[strcspn(text_copy, "\n")] = 0;
@@ -138,7 +138,7 @@ std::string to_timestamp(int64_t t)
 	return std::string(buf);
 }
 
-int run_whisper_inference(struct cleanstream_data *gf, const float *pcm32f_data, size_t pcm32f_size)
+int run_whisper_inference(struct pottymuter_data *gf, const float *pcm32f_data, size_t pcm32f_size)
 {
 	std::lock_guard<std::mutex> lock(gf->whisper_ctx_mutex);
 
@@ -228,7 +228,7 @@ int run_whisper_inference(struct cleanstream_data *gf, const float *pcm32f_data,
 	return DETECTION_RESULT_SPEECH;
 }
 
-long long process_audio_from_buffer(struct cleanstream_data *gf)
+long long process_audio_from_buffer(struct pottymuter_data *gf)
 {
 	uint64_t start_timestamp = 0;
 	uint64_t end_timestamp = 0;
@@ -244,9 +244,9 @@ long long process_audio_from_buffer(struct cleanstream_data *gf)
 		}
 
 		// peek at the info_buffer to get the timestamp of the last info
-		struct cleanstream_audio_info info_from_buf = {0};
+		struct pottymuter_audio_info info_from_buf = {0};
 		deque_peek_back(&gf->info_buffer, &info_from_buf,
-				sizeof(struct cleanstream_audio_info));
+				sizeof(struct pottymuter_audio_info));
 		end_timestamp = info_from_buf.timestamp;
 		start_timestamp =
 			end_timestamp - (int)(gf->frames * 1000 / gf->sample_rate) * 1000000;
@@ -326,7 +326,7 @@ long long process_audio_from_buffer(struct cleanstream_data *gf)
 
 void whisper_loop(void *data)
 {
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
+	struct pottymuter_data *gf = static_cast<struct pottymuter_data *>(data);
 	const size_t segment_size = gf->frames * sizeof(float);
 
 	obs_log(LOG_INFO, "starting whisper thread");

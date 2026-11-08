@@ -1,5 +1,5 @@
 /*
-Clean Stream Filter Plugin for OBS Studio
+PottyMuter Plugin for OBS Studio (fork of Clean Stream Filter Plugin)
 Copyright (C) 2023 Roy Shilkrot roy.shil@gmail.com
 
 This program is free software; you can redistribute it and/or modify

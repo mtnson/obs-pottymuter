@@ -1,5 +1,5 @@
 /*
-OBS Clean Stream Filter Plugin
+OBS PottyMuter Plugin (fork of OBS Clean Stream Filter Plugin)
 Copyright (C) 2023 Roy Shilkrot roy.shil@gmail.com
 
 This program is free software; you can redistribute it and/or modify
@@ -24,7 +24,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 MODULE_EXPORT const char *obs_module_description(void)
 {
-	return obs_module_text("CleanStreamFilterPlugin");
+	return obs_module_text("PottyMuterFilterPlugin");
 }
 
 extern struct obs_source_info cleanstream_filter_info;

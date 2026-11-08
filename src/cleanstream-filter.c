@@ -1,7 +1,7 @@
 #include "cleanstream-filter.h"
 
 struct obs_source_info cleanstream_filter_info = {
-	.id = "cleanstream_audio_filter",
+	.id = "pottymuter_audio_filter",
 	.type = OBS_SOURCE_TYPE_FILTER,
 	.output_flags = OBS_SOURCE_AUDIO,
 	.get_name = cleanstream_name,

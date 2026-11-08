@@ -30,13 +30,13 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.royshilkrot.obs-cleanstream"
+            "bundleId": "com.mtnson.obs-pottymuter"
         }
     },
-    "name": "obs-cleanstream",
+    "name": "obs-pottymuter",
     "version": "0.2.0",
-    "author": "Roy Shilkrot",
-    "website": "https://github.com/locaal-ai/obs-cleanstream/",
+    "author": "mtnson (fork of obs-cleanstream by Roy Shilkrot)",
+    "website": "https://github.com/mtnson/obs-cleanstream/",
     "email": "roy.shil@gmail.com",
     "uuids": {
         "macosPackage": "b6f62fcf-36d3-4006-8b9a-dc0df1875dda",

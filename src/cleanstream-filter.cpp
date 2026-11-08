@@ -244,7 +244,7 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 const char *cleanstream_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return MT_("CleanStreamAudioFilter");
+	return MT_("PottyMuterAudioFilter");
 }
 
 void cleanstream_destroy(void *data)
@@ -363,7 +363,7 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 	gf->context = filter;
 	gf->whisper_context = nullptr;
 
-	obs_log(LOG_INFO, "CleanStream filter: channels %d, sample_rate %d", (int)gf->channels,
+	obs_log(LOG_INFO, "PottyMuter filter: channels %d, sample_rate %d", (int)gf->channels,
 		gf->sample_rate);
 
 	struct resample_info src, dst;
@@ -417,14 +417,14 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 void cleanstream_activate(void *data)
 {
 	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
-	obs_log(LOG_INFO, "CleanStream filter activated");
+	obs_log(LOG_INFO, "PottyMuter filter activated");
 	gf->active = true;
 }
 
 void cleanstream_deactivate(void *data)
 {
 	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
-	obs_log(LOG_INFO, "CleanStream filter deactivated");
+	obs_log(LOG_INFO, "PottyMuter filter deactivated");
 	gf->active = false;
 }
 

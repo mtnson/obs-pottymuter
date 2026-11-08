@@ -17,8 +17,8 @@ defaults tuned for Russian speech.
 > All credit for the original concept and code goes to the upstream authors —
 > see [Attribution](#attribution--license).
 
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/mtnson/obs-cleanstream/push.yaml)](https://github.com/mtnson/obs-cleanstream/actions/workflows/push.yaml)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mtnson/obs-cleanstream)](https://github.com/mtnson/obs-cleanstream/releases)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/mtnson/obs-pottymuter/push.yaml)](https://github.com/mtnson/obs-pottymuter/actions/workflows/push.yaml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mtnson/obs-pottymuter)](https://github.com/mtnson/obs-pottymuter/releases)
 
 ## What this fork changes / plans to change
 
@@ -44,7 +44,7 @@ defaults tuned for Russian speech.
 ## Download
 
 Check out the
-[latest releases](https://github.com/mtnson/obs-cleanstream/releases)
+[latest releases](https://github.com/mtnson/obs-pottymuter/releases)
 for downloads and install instructions.
 
 ## Requirements
@@ -82,7 +82,7 @@ with the very same scripts.
 Start by cloning this repository (with submodules):
 
 ```sh
-git clone --recursive https://github.com/mtnson/obs-cleanstream.git
+git clone --recursive https://github.com/mtnson/obs-pottymuter.git
 ```
 
 ### Windows

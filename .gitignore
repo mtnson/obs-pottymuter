@@ -15,6 +15,7 @@
 !CMakePresets.json
 !LICENSE
 !README.md
+!dev-build.ps1
 !patch_libobs.diff
 !vendor
 

@@ -90,7 +90,22 @@ git clone --recursive https://github.com/mtnson/obs-pottymuter.git
 Prerequisites: PowerShell 7, Visual Studio 2022 Build Tools (C++ workload,
 includes CMake). Inno Setup 6 is only needed for installer packaging.
 
-Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd`.
+For the local edit-build-test loop there is a helper script that builds with
+the same settings CI uses and deploys the result straight into your OBS
+installation (overwrites the installed `obs-pottymuter.dll` and its runtime
+dlls, so restart OBS after running it):
+
+```powershell
+> .\dev-build.ps1                          # generic CPU, RelWithDebInfo
+> .\dev-build.ps1 -Acceleration nvidia     # CUDA variant
+```
+
+To debug: build once with the default `RelWithDebInfo`, run the script, then
+in Visual Studio use Debug → Attach to Process → `obs64.exe` (the PDB files
+deployed next to the DLL provide symbols).
+
+Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd`
+if you want to drive `.github/scripts/Build-Windows.ps1` manually.
 `nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and
 all variants include Vulkan and OpenBLAS support.
 

@@ -6,6 +6,9 @@ on:
       - master
       - main
       - 'release/**'
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
     tags:
       - '*'
 permissions:

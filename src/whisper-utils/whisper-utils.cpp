@@ -44,6 +44,25 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 			std::string model_file_found = find_model_bin_file(model_info);
 			if (model_file_found == "") {
 				obs_log(LOG_WARNING, "Whisper model does not exist");
+
+				// OBS calls the filter update callback twice for a
+				// single settings change (an immediate visual
+				// callback and a deferred undo/redo callback ~500 ms
+				// later). Skip duplicate download requests: two
+				// concurrent downloads of the same file race for the
+				// ".part" temp file and the loser reports a bogus
+				// "failed to save" error for an ultimately
+				// successful download.
+				if (const std::string busy_model = model_download_in_progress();
+				    !busy_model.empty()) {
+					obs_log(
+						LOG_WARNING,
+						"Download of model '%s' is already in progress, skipping duplicate download request for '%s'",
+						busy_model.c_str(),
+						model_info.local_folder_name.c_str());
+					return;
+				}
+
 				download_model_with_ui_dialog(
 					model_info, [gf, new_model_path](int download_status,
 									 const std::string &path) {

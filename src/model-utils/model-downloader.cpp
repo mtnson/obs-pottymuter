@@ -91,6 +91,19 @@ std::string find_model_bin_file(const ModelInfo &model_info)
 void download_model_with_ui_dialog(const ModelInfo &model_info,
 				   download_finished_callback_t download_finished_callback)
 {
+	// Defense-in-depth: the caller (update_whisper_model) already skips
+	// duplicate requests, but reserve the download slot synchronously on
+	// this (UI) thread anyway, so two updates racing in can never both
+	// reach this point with the slot free. The worker releases the slot
+	// in its destructor.
+	const std::string busy_model = try_begin_model_download(model_info.local_folder_name);
+	if (!busy_model.empty()) {
+		obs_log(LOG_WARNING,
+			"Model download already in progress for '%s', ignoring new download request for '%s'",
+			busy_model.c_str(), model_info.local_folder_name.c_str());
+		return;
+	}
+
 	// Start the model downloader UI
 	ModelDownloader *model_downloader = new ModelDownloader(
 		model_info, download_finished_callback, (QWidget *)obs_frontend_get_main_window());

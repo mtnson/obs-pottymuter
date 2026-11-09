@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string>
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)
@@ -33,6 +34,57 @@ std::string lower_case(std::string s)
 bool is_bin_file(const std::filesystem::path &path)
 {
 	return (path.extension() == ".bin");
+}
+
+// Registry of the currently running model download, used to reject duplicate
+// download requests. OBS calls the filter update callback twice for a single
+// settings change (an immediate visual callback and a deferred undo/redo
+// callback ~500 ms later); without the registry both invocations download the
+// same file concurrently, race for the ".part" temp file and the loser
+// reports a bogus "failed to save" error for an ultimately successful
+// download.
+//
+// The reservation is made synchronously on the UI thread (from
+// download_model_with_ui_dialog, see model-downloader.cpp) while the
+// registry entry is released by the download worker's destructor, so it stays
+// consistent across every exit path - success, error, and also when the
+// dialog is destroyed mid-download (closing the "Filters" window) and its
+// completion callback is never delivered.
+std::mutex &active_download_mutex()
+{
+	static std::mutex m;
+	return m;
+}
+
+std::string &active_download_model()
+{
+	static std::string model;
+	return model;
+}
+
+} // namespace
+
+std::string try_begin_model_download(const std::string &local_folder_name)
+{
+	std::lock_guard<std::mutex> lock(active_download_mutex());
+	std::string &current = active_download_model();
+	if (!current.empty())
+		return current;
+	current = local_folder_name;
+	return {};
+}
+
+void end_model_download(const std::string &local_folder_name)
+{
+	std::lock_guard<std::mutex> lock(active_download_mutex());
+	if (active_download_model() == local_folder_name)
+		active_download_model().clear();
+}
+
+std::string model_download_in_progress()
+{
+	std::lock_guard<std::mutex> lock(active_download_mutex());
+	return active_download_model();
 }
 
 // A file is considered a complete artifact when its size is plausible and
@@ -65,8 +117,6 @@ bool file_matches(const std::filesystem::path &path, const std::string &expected
 		obs_log(LOG_WARNING, "SHA-256 mismatch for %s", path.string().c_str());
 	return matches;
 }
-
-} // namespace
 
 ModelDownloader::ModelDownloader(const ModelInfo &model_info,
 				 download_finished_callback_t download_finished_callback_,
@@ -159,6 +209,8 @@ void ModelDownloader::show_error(const std::string &reason)
 	QLabel *error_label = new QLabel(this);
 	error_label->setText(QString::fromStdString(reason));
 	error_label->setAlignment(Qt::AlignCenter);
+	// Wrap long reasons (e.g. HTTP codes + hints) instead of stretching the window
+	error_label->setWordWrap(true);
 	// Color red
 	error_label->setStyleSheet("QLabel { color : red; }");
 	this->layout->addWidget(error_label);
@@ -166,6 +218,12 @@ void ModelDownloader::show_error(const std::string &reason)
 	QPushButton *close_button = new QPushButton("Close", this);
 	this->layout->addWidget(close_button);
 	connect(close_button, &QPushButton::clicked, this, &ModelDownloader::close);
+	// The constructor locked the dialog to (300x100) for the progress-only
+	// state; unlock it and shrink-to-fit so progress bar, error text and the
+	// close button are all fully visible instead of being squished/cut off.
+	this->setMinimumSize(300, 140);
+	this->setMaximumSize(500, 300);
+	this->adjustSize();
 	this->download_finished_callback(1, "");
 }
 
@@ -382,5 +440,7 @@ ModelDownloader::~ModelDownloader()
 
 ModelDownloadWorker::~ModelDownloadWorker()
 {
-	// Do nothing
+	// Release the download registry even when the completion callback was
+	// never delivered (e.g. the dialog was destroyed mid-download).
+	end_model_download(this->model_info.local_folder_name);
 }

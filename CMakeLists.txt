@@ -114,6 +114,20 @@ target_sources(
           src/model-utils/sha256.cpp
           src/whisper-utils/whisper-utils.cpp
           src/whisper-utils/whisper-processing.cpp
+          src/whisper-utils/text-normalize.cpp
           src/whisper-utils/silero-vad-onnx.cpp)
+
+# --- Unit tests -------------------------------------------------------------
+# Tests do not depend on OBS and are not installed with the plugin: they
+# cover the pure normalization/matching logic on neutral words only.
+option(POTTYMUTER_BUILD_TESTS "Build PottyMuter unit tests" ON)
+
+if(POTTYMUTER_BUILD_TESTS)
+  enable_testing()
+  add_executable(pottymuter-text-tests tests/text-normalize-tests.cpp
+                                         src/whisper-utils/text-normalize.cpp)
+  target_include_directories(pottymuter-text-tests PRIVATE src/whisper-utils)
+  add_test(NAME pottymuter-text-tests COMMAND pottymuter-text-tests)
+endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

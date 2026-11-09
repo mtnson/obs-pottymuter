@@ -4,6 +4,7 @@
 
 #include "plugin-support.h"
 #include "pottymuter-filter-data.h"
+#include "text-normalize.h"
 #include "whisper-processing.h"
 
 #include <algorithm>
@@ -192,16 +193,15 @@ int run_whisper_inference(struct pottymuter_data *gf, const float *pcm32f_data, 
 		return DETECTION_RESULT_SILENCE;
 	}
 
-	// if language is en convert text to lowercase
-	if (strcmp(gf->whisper_params.language, "en") == 0) {
-		std::transform(text_preproc.begin(), text_preproc.end(), text_preproc.begin(),
-			       ::tolower);
-		// remove leading and trailing non-alphanumeric characters
-		text_preproc = remove_leading_trailing_nonalpha(text_preproc);
-	} else {
-		// fix UTF8 encoding
-		text_preproc = fix_utf8(text_preproc);
-	}
+	// fix UTF8 encoding (known Windows issue: some lead bytes are broken)
+	text_preproc = fix_utf8(text_preproc);
+
+	// Case fold by code point and map yo -> e before matching. Everything
+	// else (punctuation, spacing, repeated letters) stays untouched, so
+	// patterns written for other languages keep working as before.
+	// Previously this only ran for the "en" language, used byte-wise
+	// ::tolower and a trim helper that always ate the first byte.
+	text_preproc = pottymuter::normalize_text(text_preproc);
 
 	if (gf->log_words) {
 		obs_log(LOG_INFO, "[%s --> %s] (%.3f) %s", to_timestamp(t0).c_str(),
@@ -215,7 +215,8 @@ int run_whisper_inference(struct pottymuter_data *gf, const float *pcm32f_data, 
 	// use a regular expression to detect filler words with a word boundary
 	try {
 		if (gf->detect_regex != nullptr && strlen(gf->detect_regex) > 0) {
-			std::regex filler_regex(gf->detect_regex);
+			std::regex filler_regex(
+				pottymuter::normalize_pattern(gf->detect_regex));
 			if (std::regex_search(text_preproc, filler_regex,
 					      std::regex_constants::match_any)) {
 				return DETECTION_RESULT_BEEP;

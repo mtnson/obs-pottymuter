@@ -18,6 +18,7 @@
 !dev-build.ps1
 !patch_libobs.diff
 !vendor
+!/tests
 
 # Exclude lock files
 *.lock.json

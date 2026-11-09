@@ -1,7 +1,7 @@
 include(ExternalProject)
 include(FetchContent)
 
-set(PREBUILT_WHISPERCPP_VERSION "0.0.10-2")
+set(PREBUILT_WHISPERCPP_VERSION "0.0.14")
 set(PREBUILT_WHISPERCPP_URL_BASE
     "https://github.com/locaal-ai/occ-ai-dep-whispercpp/releases/download/${PREBUILT_WHISPERCPP_VERSION}")
 
@@ -169,8 +169,15 @@ if(APPLE)
       FATAL_ERROR
         "The MACOS_ARCH environment variable is not set to a valid value. Please set it to either `x86_64` or `arm64`")
   endif()
+  # NOTE: as of 0.0.14 the macOS assets were renamed (metal-variant suffix,
+  # e.g. whispercpp-macos-arm64-metal3.1-0.0.14.tar.gz) and the plain
+  # whispercpp-macos-<arch>-<version>.tar.gz pattern no longer exists there,
+  # so macOS stays pinned to the last release matching its URL pattern.
+  set(PREBUILT_WHISPERCPP_VERSION_MacOS "0.0.10-2")
+  set(PREBUILT_WHISPERCPP_URL_BASE_MacOS
+      "https://github.com/locaal-ai/occ-ai-dep-whispercpp/releases/download/${PREBUILT_WHISPERCPP_VERSION_MacOS}")
   set(WHISPER_CPP_URL
-      "${PREBUILT_WHISPERCPP_URL_BASE}/whispercpp-macos-$ENV{MACOS_ARCH}-${PREBUILT_WHISPERCPP_VERSION}.tar.gz")
+      "${PREBUILT_WHISPERCPP_URL_BASE_MacOS}/whispercpp-macos-$ENV{MACOS_ARCH}-${PREBUILT_WHISPERCPP_VERSION_MacOS}.tar.gz")
 
   set(WHISPER_LIBRARIES Whisper WhisperCoreML GGML GGMLBase)
   list(APPEND WHISPER_RUNTIME_MODULES GGMLMetal GGMLBlas)
@@ -216,12 +223,12 @@ elseif(WIN32)
       "${PREBUILT_WHISPERCPP_URL_BASE}/whispercpp-windows${ARCH_PREFIX}${ACCELERATION_PREFIX}-${PREBUILT_WHISPERCPP_VERSION}.zip"
   )
   if(${ACCELERATION} STREQUAL "generic")
-    set(WHISPER_CPP_HASH "affff7241d36aa09863d65fe5a2d581251a9955a4465186ffdec00c893abcaee")
+    set(WHISPER_CPP_HASH "8c0c60f8833f75b1a10a0c39b476a199baa946454ba049a3f4b0be7513b4e712")
   elseif(${ACCELERATION} STREQUAL "nvidia")
-    set(WHISPER_CPP_HASH "2b07afba9ad3489e6f173be6be7ffde2625ba5c0d84af7e306308676cabf67a6")
+    set(WHISPER_CPP_HASH "92f7f2c44f020b19db1e82d355875ba7439f93f9317c09002b9265930342b871")
     list(APPEND WHISPER_RUNTIME_MODULES GGMLCUDA)
   elseif(${ACCELERATION} STREQUAL "amd")
-    set(WHISPER_CPP_HASH "9713220e1427b94f733255a25c2cf9f26577d2ce7eb55c48a6a0cc651313e9e5")
+    set(WHISPER_CPP_HASH "1dcd2896be7ff4d2ad59e7401417f695e46a4db0b2f68b5af3959f6193d393b3")
     list(APPEND WHISPER_RUNTIME_MODULES GGMLHip)
   else()
     message(
@@ -296,9 +303,9 @@ else()
     set(WHISPER_CPP_URL
         "${PREBUILT_WHISPERCPP_URL_BASE}/whispercpp-linux${ARCH_PREFIX}${ACCELERATION_PREFIX}-Release.tar.gz")
     if(${ACCELERATION} STREQUAL "generic")
-      set(WHISPER_CPP_HASH "5a4f3baf7d7e030f3e5a29d78fdd06f069fe472ad0f9ca93d40ed222052a3fe5")
+      set(WHISPER_CPP_HASH "1323c9975484dcc7a9fa3b8dd504885076fa93d890746e414177aeb98f05e787")
     elseif(${ACCELERATION} STREQUAL "nvidia")
-      set(WHISPER_CPP_HASH "a43dc8a44577e965caf9b0baaae74f30a9e00d99a296768021e7ccf0b9217878")
+      set(WHISPER_CPP_HASH "fdde7f1069582d2e7dd80c4a869e3c15d80333bd6a1bea07a998267cf70a3c24")
       list(APPEND WHISPER_RUNTIME_MODULES GGMLCUDA)
 
       # Find CUDA libraries and link against them
@@ -313,7 +320,7 @@ else()
         CUDA::cuda_driver
         CUDA::OpenCL)
     elseif(${ACCELERATION} STREQUAL "amd")
-      set(WHISPER_CPP_HASH "1a7592da41493e57ead23c97a420f2db11a4fe31049c9b01cdb310bff05fdca1")
+      set(WHISPER_CPP_HASH "797e2142be4a9d212c96be1b6f37561729a3ab3c5ce18af717b5d9954e9a9de4")
       list(APPEND WHISPER_RUNTIME_MODULES GGMLHip)
 
       # Find hip libraries and link against them

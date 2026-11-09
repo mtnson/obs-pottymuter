@@ -35,9 +35,11 @@ std::string find_file_in_folder_by_regex_expression(const std::string &folder_pa
 
 std::string find_bin_file_in_folder(const std::string &model_local_folder_path)
 {
-	// find .bin file in folder
+	// find a plausible .bin file in folder. Every ggml whisper model is
+	// well above 1 MB, so smaller files are broken leftovers (e.g. a 0-byte
+	// file from a failed download) and must not be reported as the model.
 	for (const auto &entry : std::filesystem::directory_iterator(model_local_folder_path)) {
-		if (entry.path().extension() == ".bin") {
+		if (entry.path().extension() == ".bin" && entry.file_size() >= 1024 * 1024) {
 			const std::string bin_file_path = entry.path().string();
 			obs_log(LOG_INFO, "Model bin file found in folder: %s",
 				bin_file_path.c_str());

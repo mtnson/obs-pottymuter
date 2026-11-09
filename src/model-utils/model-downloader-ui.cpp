@@ -1,15 +1,72 @@
 #include "model-downloader-ui.h"
 #include "plugin-support.h"
+#include "sha256.h"
 
 #include <obs-module.h>
 
+#include <cctype>
+#include <cstdint>
 #include <filesystem>
+#include <string>
 
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	size_t written = fwrite(ptr, size, nmemb, stream);
 	return written;
 }
+
+namespace {
+
+// Every ggml whisper model is well above 1 MB; a smaller ".bin" is a broken
+// or partial download.
+constexpr std::uintmax_t kMinBinFileSize = 1024 * 1024;
+// Metadata files (tokenizer configs etc.) are tiny but never empty.
+constexpr std::uintmax_t kMinMetadataFileSize = 1024;
+
+std::string lower_case(std::string s)
+{
+	for (char &c : s)
+		c = char(tolower((unsigned char)c));
+	return s;
+}
+
+bool is_bin_file(const std::filesystem::path &path)
+{
+	return (path.extension() == ".bin");
+}
+
+// A file is considered a complete artifact when its size is plausible and
+// (when the model catalog provides a checksum) its SHA-256 matches.
+// The catalog normaly stores uppercase digests; compare case-insensitively.
+bool file_matches(const std::filesystem::path &path, const std::string &expected_sha256)
+{
+	std::uintmax_t size = 0;
+	try {
+		size = std::filesystem::file_size(path);
+	} catch (const std::filesystem::filesystem_error &) {
+		return false;
+	}
+
+	if (is_bin_file(path) ? size < kMinBinFileSize : size < kMinMetadataFileSize) {
+		obs_log(LOG_WARNING, "File size is implausible (0 or partial): %s (%llu bytes)",
+			path.string().c_str(), (unsigned long long)size);
+		return false;
+	}
+
+	if (expected_sha256.empty())
+		return true;
+
+	const char *actual = sha256_file_hex(path.string().c_str());
+	if (actual[0] == '\0') { // hashing failed (self-test or IO error)
+		return false;
+	}
+	const bool matches = lower_case(actual) == lower_case(expected_sha256);
+	if (!matches)
+		obs_log(LOG_WARNING, "SHA-256 mismatch for %s", path.string().c_str());
+	return matches;
+}
+
+} // namespace
 
 ModelDownloader::ModelDownloader(const ModelInfo &model_info,
 				 download_finished_callback_t download_finished_callback_,
@@ -174,51 +231,123 @@ void ModelDownloadWorker::download_model()
 	}
 
 	CURL *curl = curl_easy_init();
-	if (curl) {
-		for (auto &model_download_file : this->model_info.files) {
-			obs_log(LOG_INFO, "Model URL: %s", model_download_file.url.c_str());
-
-			const std::string model_filename =
-				get_filename_from_url(model_download_file.url);
-			const std::string model_file_save_path =
-				(std::filesystem::path(model_local_config_path) / model_filename)
-					.string();
-			if (std::filesystem::exists(model_file_save_path)) {
-				obs_log(LOG_INFO, "Model file already exists: %s",
-					model_file_save_path.c_str());
-				continue;
-			}
-
-			FILE *fp = fopen(model_file_save_path.c_str(), "wb");
-			if (fp == nullptr) {
-				obs_log(LOG_ERROR, "Failed to open model file for writing %s.",
-					model_file_save_path.c_str());
-				emit download_error("Failed to open file.");
-				return;
-			}
-			curl_easy_setopt(curl, CURLOPT_URL, model_download_file.url.c_str());
-			curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-			curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-			curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-			curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,
-					 ModelDownloadWorker::progress_callback);
-			curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
-			// Follow redirects
-			curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-			CURLcode res = curl_easy_perform(curl);
-			if (res != CURLE_OK) {
-				obs_log(LOG_ERROR, "Failed to download model file %s.",
-					model_filename.c_str());
-				emit download_error("Failed to download model file.");
-			}
-			fclose(fp);
-		}
-		curl_easy_cleanup(curl);
-		emit download_finished(model_local_config_path);
-	} else {
+	if (curl == nullptr) {
 		obs_log(LOG_ERROR, "Failed to initialize curl.");
 		emit download_error("Failed to initialize curl.");
+		return;
 	}
+
+	for (auto &model_download_file : this->model_info.files) {
+		obs_log(LOG_INFO, "Model URL: %s", model_download_file.url.c_str());
+
+		const std::string model_filename =
+			get_filename_from_url(model_download_file.url);
+		const std::filesystem::path model_file_save_path =
+			std::filesystem::path(model_local_config_path) / model_filename;
+
+		// An existing file only counts as "downloaded" when it passes
+		// validation (plausible size + sha256 when the catalog has one).
+		// Partial or corrupted leftovers - e.g. a 0-byte file from a
+		// previously failed download - are deleted and re-downloaded.
+		if (std::filesystem::exists(model_file_save_path)) {
+			if (file_matches(model_file_save_path, model_download_file.sha256)) {
+				obs_log(LOG_INFO, "Model file already exists and is valid: %s",
+					model_file_save_path.string().c_str());
+				continue;
+			}
+			obs_log(LOG_WARNING,
+				"Existing model file failed validation, will re-download: %s",
+				model_file_save_path.string().c_str());
+			std::error_code remove_ec;
+			std::filesystem::remove(model_file_save_path, remove_ec);
+		}
+
+		// Download into a temporary ".part" file: a failed or partial
+		// transfer must never leave something on disk that later looks
+		// like a valid model file.
+		const std::filesystem::path part_path =
+			model_file_save_path.string() + ".part";
+		FILE *fp = fopen(part_path.string().c_str(), "wb");
+		if (fp == nullptr) {
+			obs_log(LOG_ERROR, "Failed to open model file for writing %s.",
+				part_path.string().c_str());
+			curl_easy_cleanup(curl);
+			emit download_error("Failed to open file for writing.");
+			return;
+		}
+
+		curl_easy_setopt(curl, CURLOPT_URL, model_download_file.url.c_str());
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+		curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+		curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,
+				 ModelDownloadWorker::progress_callback);
+		curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
+		// Follow redirects
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+		// Treat HTTP >= 400 as an error: without this, a 403/404 error
+		// page (e.g. a geo-block or captcha HTML) would be saved as the
+		// "model" and pass the CURLE_OK check.
+		curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+		CURLcode res = curl_easy_perform(curl);
+
+		long http_code = 0;
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+		fclose(fp);
+
+		if (res != CURLE_OK) {
+			obs_log(LOG_ERROR, "Failed to download model file %s: %s (curl=%d, HTTP %ld)",
+				model_filename.c_str(), curl_easy_strerror(res), (int)res,
+				http_code);
+			std::error_code remove_ec;
+			std::filesystem::remove(part_path, remove_ec);
+			curl_easy_cleanup(curl);
+
+			std::string reason = "Failed to download model file '" + model_filename +
+					     "'";
+			if (http_code > 0)
+				reason += ": HTTP " + std::to_string(http_code) +
+					  " (the host may be unreachable from your network)";
+			else
+				reason += std::string(": ") + curl_easy_strerror(res);
+			emit download_error(reason);
+			return;
+		}
+
+		// Validate the downloaded file BEFORE it is allowed to count as
+		// a model: size plausibility and (when the catalog provides it)
+		// sha256.
+		if (!file_matches(part_path, model_download_file.sha256)) {
+			obs_log(LOG_ERROR, "Downloaded file failed validation: %s",
+				part_path.string().c_str());
+			std::error_code remove_ec;
+			std::filesystem::remove(part_path, remove_ec);
+			curl_easy_cleanup(curl);
+			emit download_error("Downloaded model file is corrupted (failed size or "
+					    "checksum validation), please try again.");
+			return;
+		}
+
+		// Promote the validated temp file to its final name.
+		std::error_code rename_ec;
+		std::filesystem::rename(part_path, model_file_save_path, rename_ec);
+		if (rename_ec) {
+			obs_log(LOG_ERROR, "Failed to move downloaded file into place: %s (%s)",
+				rename_ec.message().c_str(), model_file_save_path.string().c_str());
+			std::error_code remove_ec;
+			std::filesystem::remove(part_path, remove_ec);
+			curl_easy_cleanup(curl);
+			emit download_error("Failed to save downloaded model file.");
+			return;
+		}
+
+		obs_log(LOG_INFO, "Model file downloaded and validated: %s",
+			model_file_save_path.string().c_str());
+	}
+
+	curl_easy_cleanup(curl);
+	emit download_finished(model_local_config_path);
 }
 
 int ModelDownloadWorker::progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow,

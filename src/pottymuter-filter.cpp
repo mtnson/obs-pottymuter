@@ -10,7 +10,9 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <vector>
 #include <cinttypes>
+#include <cstdio>
 #include <algorithm>
 #include <regex>
 #include <functional>
@@ -580,10 +582,23 @@ obs_properties_t *pottymuter_properties(void *data)
 	// are dropped). Not-yet-downloaded models cannot be verified here
 	// and stay listed; update_whisper_model performs the same check on
 	// the actual file before loading it.
+	//
+	// Downloaded models float to the top of the list and get a check mark
+	// plus their file size; the stored setting value remains the plain
+	// friendly_name so saved scenes survive the relabeling.
+	struct ModelListEntry {
+		std::string friendly_name;
+		bool downloaded = false;
+		std::uintmax_t size_bytes = 0;
+	};
+
+	std::vector<ModelListEntry> model_entries;
 	for (const auto &model_info : get_sorted_models_info()) {
 		if (model_info.type != MODEL_TYPE_TRANSCRIPTION) {
 			continue;
 		}
+		ModelListEntry entry{model_info.friendly_name, false, 0};
+
 		const std::string bin_file = find_model_bin_file(model_info);
 		if (!bin_file.empty()) {
 			const int64_t n_vocab = read_ggml_model_n_vocab(bin_file);
@@ -596,10 +611,37 @@ obs_properties_t *pottymuter_properties(void *data)
 					(long long)kMinCompatibleWhisperVocab);
 				continue;
 			}
+			entry.downloaded = true;
+			std::error_code size_error;
+			entry.size_bytes = std::filesystem::file_size(bin_file, size_error);
+			if (size_error) {
+				entry.size_bytes = 0;
+			}
 		}
-		obs_property_list_add_string(whisper_models_list,
-					     model_info.friendly_name.c_str(),
-					     model_info.friendly_name.c_str());
+		model_entries.push_back(std::move(entry));
+	}
+
+	// stable sort: keep the catalog order within each group
+	std::stable_sort(model_entries.begin(), model_entries.end(),
+			 [](const ModelListEntry &a, const ModelListEntry &b) {
+				 return a.downloaded && !b.downloaded;
+			 });
+
+	for (const ModelListEntry &entry : model_entries) {
+		std::string label = entry.friendly_name;
+		if (entry.downloaded) {
+			// UTF-8 encoded check mark for the downloaded group
+			label = "\xE2\x9C\x93 " + label;
+			if (entry.size_bytes > 0) {
+				char size_text[32];
+				std::snprintf(size_text, sizeof(size_text), "%.2f GB",
+					      static_cast<double>(entry.size_bytes) /
+						      1073741824.0);
+				label += " (" + std::string(size_text) + ")";
+			}
+		}
+		obs_property_list_add_string(whisper_models_list, label.c_str(),
+					     entry.friendly_name.c_str());
 	}
 
 	// Add language selector

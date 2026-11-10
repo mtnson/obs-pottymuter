@@ -19,6 +19,7 @@
 #include <whisper.h>
 
 #include "pottymuter-filter.h"
+#include "model-utils/ggml-header.h"
 #include "model-utils/model-downloader.h"
 #include "whisper-utils/whisper-language.h"
 #include "whisper-utils/whisper-processing.h"
@@ -572,13 +573,33 @@ obs_properties_t *pottymuter_properties(void *data)
 	obs_property_t *whisper_models_list =
 		obs_properties_add_list(ppts, "whisper_model_path", MT_("whisper_model"),
 					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	// Add models from models_info map
+	// Add models from models_info map. Models with a positively detected
+	// pruned vocabulary (see ggml-header.h) are hidden from the list:
+	// loading them crashes OBS (read_ggml_model_n_vocab refuses to trust
+	// unreadable or non-whisper files, so only verified pruned models
+	// are dropped). Not-yet-downloaded models cannot be verified here
+	// and stay listed; update_whisper_model performs the same check on
+	// the actual file before loading it.
 	for (const auto &model_info : get_sorted_models_info()) {
-		if (model_info.type == MODEL_TYPE_TRANSCRIPTION) {
-			obs_property_list_add_string(whisper_models_list,
-						     model_info.friendly_name.c_str(),
-						     model_info.friendly_name.c_str());
+		if (model_info.type != MODEL_TYPE_TRANSCRIPTION) {
+			continue;
 		}
+		const std::string bin_file = find_model_bin_file(model_info);
+		if (!bin_file.empty()) {
+			const int64_t n_vocab = read_ggml_model_n_vocab(bin_file);
+			if (!is_whisper_vocab_compatible(n_vocab)) {
+				obs_log(
+					LOG_WARNING,
+					"Hiding model '%s' from the list: pruned vocabulary (n_vocab=%lld, expecting >= %lld) is incompatible with whisper.cpp",
+					model_info.friendly_name.c_str(),
+					(long long)n_vocab,
+					(long long)kMinCompatibleWhisperVocab);
+				continue;
+			}
+		}
+		obs_property_list_add_string(whisper_models_list,
+					     model_info.friendly_name.c_str(),
+					     model_info.friendly_name.c_str());
 	}
 
 	// Add language selector

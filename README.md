@@ -49,7 +49,7 @@ for downloads and install instructions.
 
 ## Requirements
 
-- OBS version 32+ → plugin versions 0.2.0+
+- OBS version 32+ → plugin versions 0.2.1+
 - OBS version 30+ → plugin versions 0.0.4+
 - OBS version 29 → plugin versions 0.0.2+
 - OBS version 28 → plugin versions 0.0.1

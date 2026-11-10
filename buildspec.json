@@ -34,7 +34,7 @@
         }
     },
     "name": "obs-pottymuter",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "author": "mtnson (fork of obs-cleanstream by Roy Shilkrot)",
     "website": "https://github.com/mtnson/obs-pottymuter/",
     "email": "roy.shil@gmail.com",

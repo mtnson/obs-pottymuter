@@ -1,6 +1,7 @@
 #include "model-downloader-ui.h"
 #include "plugin-support.h"
 #include "sha256.h"
+#include "ggml-header.h"
 
 #include <obs-module.h>
 
@@ -117,6 +118,94 @@ bool file_matches(const std::filesystem::path &path, const std::string &expected
 		obs_log(LOG_WARNING, "SHA-256 mismatch for %s", path.string().c_str());
 	return matches;
 }
+
+// Result of the pre-download header probe.
+enum class ProbeStatus {
+	// Header says ggml and n_vocab is standard: safe to download.
+	Compatible,
+	// Header says ggml and n_vocab is truncated (pruned): refuse.
+	Pruned,
+	// Not enough information (transfer failure, no Range support,
+	// missing magic). The download proceeds; the local header check
+	// before loading keeps the honest refusal in any case.
+	Unknown,
+};
+
+// Aborts the probe transfer once 8 header bytes are buffered. A non-zero
+// request to curl cancels the transfer (CURLE_WRITE_ERROR); the caller
+// only looks at the buffer contents, so the cancellation is expected.
+size_t probe_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	auto *buffer = (std::string *)userdata;
+	const size_t bytes = size * nmemb;
+	if (buffer->size() >= 8)
+		return 0;
+	if (buffer->size() + bytes > 8)
+		buffer->append(ptr, 8 - buffer->size());
+	else
+		buffer->append(ptr, bytes);
+	return buffer->size() >= 8 ? 0 : bytes;
+}
+
+// Fetch the first 8 bytes of the remote model file (HTTP Range request)
+// and read the whisper ggml header from them: magic "ggml", then n_vocab.
+// This catches pruned-vocabulary models (n_vocab < 51000) BEFORE hundreds
+// of megabytes are downloaded - they would crash OBS on the first
+// inference. Verified positively only: magic/n_vocab failures stay
+// Unknown and never block a download.
+ProbeStatus probe_ggml_vocabulary(const std::string &url, int64_t *n_vocab_out)
+{
+	std::string buffer;
+
+	CURL *curl = curl_easy_init();
+	if (curl == nullptr)
+		return ProbeStatus::Unknown;
+	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, probe_write_callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buffer);
+	// No progress callbacks: the probe is silent.
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+	// Exactly the 8 header bytes; servers without Range support answer
+	// with the full response, in which case the write callback aborts
+	// the transfer after the first chunk anyway.
+	curl_easy_setopt(curl, CURLOPT_RANGE, "0-7");
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+
+	CURLcode res = curl_easy_perform(curl);
+
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	curl_easy_cleanup(curl);
+
+	if (buffer.size() < 8) {
+		obs_log(LOG_WARNING,
+			"Header probe of '%s' failed (curl=%d, HTTP %ld, %zu bytes); download continues as usual",
+			url.c_str(), (int)res, http_code, buffer.size());
+		return ProbeStatus::Unknown;
+	}
+
+	const uint32_t magic =
+		(uint32_t)(uint8_t)buffer[0] | ((uint32_t)(uint8_t)buffer[1] << 8) |
+		((uint32_t)(uint8_t)buffer[2] << 16) | ((uint32_t)(uint8_t)buffer[3] << 24);
+	const uint32_t n_vocab =
+		(uint32_t)(uint8_t)buffer[4] | ((uint32_t)(uint8_t)buffer[5] << 8) |
+		((uint32_t)(uint8_t)buffer[6] << 16) | ((uint32_t)(uint8_t)buffer[7] << 24);
+
+	if (magic != 0x67676d6cu) { // "ggml"
+		obs_log(LOG_WARNING,
+			"Header probe of '%s' found magic 0x%08X, not a whisper ggml header; download continues as usual",
+			url.c_str(), magic);
+		return ProbeStatus::Unknown;
+	}
+
+	obs_log(LOG_INFO, "Header probe of '%s': n_vocab=%u", url.c_str(), n_vocab);
+	*n_vocab_out = (int64_t)n_vocab;
+	return is_whisper_vocab_compatible((int64_t)n_vocab) ? ProbeStatus::Compatible
+							     : ProbeStatus::Pruned;
+}
+
 
 ModelDownloader::ModelDownloader(const ModelInfo &model_info,
 				 download_finished_callback_t download_finished_callback_,
@@ -318,6 +407,33 @@ void ModelDownloadWorker::download_model()
 				model_file_save_path.string().c_str());
 			std::error_code remove_ec;
 			std::filesystem::remove(model_file_save_path, remove_ec);
+		}
+
+		// Read the remote ggml header before spending the transfer.
+		// Only the ".bin" whisper model needs the probe; metadata
+		// files (tokenizer configs etc.) are not whisper models.
+		if (model_filename.size() >= 4 &&
+		    model_filename.compare(model_filename.size() - 4, 4, ".bin") == 0) {
+			int64_t remote_n_vocab = -1;
+			if (probe_ggml_vocabulary(model_download_file.url,
+						  &remote_n_vocab) == ProbeStatus::Pruned) {
+				obs_log(LOG_ERROR,
+					"Model file '%s' has a truncated vocabulary (n_vocab=%lld, expecting >= %lld); refusing to download it - the model is incompatible with whisper.cpp and would crash OBS",
+					model_filename.c_str(),
+					(long long)remote_n_vocab,
+					(long long)kMinCompatibleWhisperVocab);
+				curl_easy_cleanup(curl);
+				emit download_error(
+					"Incompatible model: truncated vocabulary (n_vocab=" +
+					std::to_string(remote_n_vocab) +
+					", standard models have >= " +
+					std::to_string(kMinCompatibleWhisperVocab) +
+					"). The download was canceled before any transfer.");
+				return;
+			}
+			// Unknown/Compatible: continue; the downloaded file
+			// still passes the local vocabulary check before it
+			// is ever loaded into whisper.
 		}
 
 		// Download into a temporary ".part" file: a failed or partial

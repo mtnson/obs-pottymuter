@@ -111,6 +111,7 @@ target_sources(
           src/model-utils/model-downloader-ui.cpp
           src/model-utils/model-infos.cpp
           src/model-utils/model-find-utils.cpp
+          src/model-utils/ggml-header.cpp
           src/model-utils/sha256.cpp
           src/whisper-utils/whisper-utils.cpp
           src/whisper-utils/whisper-processing.cpp
@@ -128,6 +129,11 @@ if(POTTYMUTER_BUILD_TESTS)
                                          src/whisper-utils/text-normalize.cpp)
   target_include_directories(pottymuter-text-tests PRIVATE src/whisper-utils)
   add_test(NAME pottymuter-text-tests COMMAND pottymuter-text-tests)
+
+  add_executable(pottymuter-ggml-header-tests tests/ggml-header-tests.cpp
+                                                  src/model-utils/ggml-header.cpp)
+  target_include_directories(pottymuter-ggml-header-tests PRIVATE src/model-utils)
+  add_test(NAME pottymuter-ggml-header-tests COMMAND pottymuter-ggml-header-tests)
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

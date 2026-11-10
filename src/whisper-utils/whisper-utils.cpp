@@ -1,5 +1,6 @@
 #include "whisper-utils.h"
 #include "plugin-support.h"
+#include "model-utils/ggml-header.h"
 #include "model-utils/model-downloader.h"
 #include "whisper-processing.h"
 
@@ -30,8 +31,10 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 		// check if the new model is external file
 		if (!is_external_model) {
 			// new model is not external file
-			shutdown_whisper_thread(gf);
 
+			// Look up the model and verify it BEFORE stopping the
+			// whisper thread: on an incompatibility we want to keep
+			// the currently loaded model running.
 			if (models_info().count(new_model_path) == 0) {
 				obs_log(LOG_WARNING, "Model '%s' does not exist",
 					new_model_path.c_str());
@@ -42,6 +45,22 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 
 			// check if the model exists, if not, download it
 			std::string model_file_found = find_model_bin_file(model_info);
+			if (!model_file_found.empty()) {
+				const int64_t n_vocab =
+					read_ggml_model_n_vocab(model_file_found);
+				if (!is_whisper_vocab_compatible(n_vocab)) {
+					obs_log(
+						LOG_ERROR,
+						"Model file '%s' has a truncated vocabulary (n_vocab=%lld, expecting >= %lld). Such pruned models are incompatible with whisper.cpp and crash OBS when decoding; not loading it, keeping the currently loaded model.",
+						model_file_found.c_str(),
+						(long long)n_vocab,
+						(long long)kMinCompatibleWhisperVocab);
+					return;
+				}
+			}
+
+			shutdown_whisper_thread(gf);
+
 			if (model_file_found == "") {
 				obs_log(LOG_WARNING, "Whisper model does not exist");
 
@@ -64,13 +83,37 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 				}
 
 				download_model_with_ui_dialog(
-					model_info, [gf, new_model_path](int download_status,
-									 const std::string &path) {
+					model_info, [gf, new_model_path,
+						     model_info](int download_status,
+								 const std::string &path) {
 						if (download_status == 0) {
 							obs_log(LOG_INFO,
 								"Model download complete");
-							gf->whisper_model_path = new_model_path;
-							start_whisper_thread_with_path(gf, path);
+
+							// The vocabulary was not
+							// verifiable before the
+							// download (no local file);
+							// refuse here instead of
+							// loading a model that
+							// would crash OBS.
+							const int64_t n_vocab =
+								read_ggml_model_n_vocab(
+									path);
+							if (!is_whisper_vocab_compatible(
+								    n_vocab)) {
+								obs_log(
+									LOG_ERROR,
+									"Downloaded model file '%s' has a truncated vocabulary (n_vocab=%lld, expecting >= %lld). Such pruned models are incompatible with whisper.cpp and crash OBS when decoding; not loading it.",
+									path.c_str(),
+									(long long)n_vocab,
+									(long long)kMinCompatibleWhisperVocab);
+								return;
+							}
+
+							gf->whisper_model_path =
+								new_model_path;
+							start_whisper_thread_with_path(
+								gf, path);
 						} else {
 							obs_log(LOG_ERROR, "Model download failed");
 						}
@@ -93,6 +136,21 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 					obs_log(LOG_INFO, "External model file is already loaded");
 					return;
 				} else {
+					// The same honest refusal as for catalog
+					// models: an external pruned-vocabulary
+					// model would crash OBS the same way.
+					const int64_t n_vocab = read_ggml_model_n_vocab(
+						external_model_file_path);
+					if (!is_whisper_vocab_compatible(n_vocab)) {
+						obs_log(
+							LOG_ERROR,
+							"External model file '%s' has a truncated vocabulary (n_vocab=%lld, expecting >= %lld). Such pruned models are incompatible with whisper.cpp and crash OBS when decoding; not loading it.",
+							external_model_file_path.c_str(),
+							(long long)n_vocab,
+							(long long)kMinCompatibleWhisperVocab);
+						return;
+					}
+
 					shutdown_whisper_thread(gf);
 					gf->whisper_model_path = new_model_path;
 					start_whisper_thread_with_path(gf,

@@ -208,29 +208,32 @@ void ModelDownloader::show_error(const std::string &reason)
 	this->progress_bar->setFormat("Download failed!");
 	this->progress_bar->setAlignment(Qt::AlignCenter);
 	this->progress_bar->setStyleSheet("QProgressBar::chunk { background-color: #FF0000; }");
-	// Add a label to show the error
+	// Error text goes into a fixed-height scrollable area: the dialog
+	// must display any refusal reason completely, no matter how long -
+	// long texts simply scroll inside the fixed viewport.
 	QLabel *error_label = new QLabel(this);
 	error_label->setText(QString::fromStdString(reason));
-	error_label->setAlignment(Qt::AlignCenter);
+	error_label->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
 	// Wrap long reasons (e.g. HTTP codes + hints) instead of stretching the window
 	error_label->setWordWrap(true);
 	// Color red
 	error_label->setStyleSheet("QLabel { color : red; }");
-	this->layout->addWidget(error_label);
+	QScrollArea *error_area = new QScrollArea(this);
+	error_area->setWidgetResizable(true);
+	error_area->setFrameShape(QFrame::NoFrame);
+	error_area->setFixedHeight(64); // ~3 lines visible, scrollbar for longer texts
+	error_area->setWidget(error_label);
+	this->layout->addWidget(error_area);
 	// Add a button to close the dialog
 	QPushButton *close_button = new QPushButton("Close", this);
 	this->layout->addWidget(close_button);
 	connect(close_button, &QPushButton::clicked, this, &ModelDownloader::close);
 	// The constructor locked the dialog to (300x100) for the progress-only
-	// state; unlock it and shrink-to-fit so progress bar, error text and the
-	// close button are all fully visible instead of being squished/cut off.
-	// A wider minimum is needed because long refusal reasons wrap into
-	// several lines at 300px and get clipped; activate the layout before
-	// measuring, otherwise adjustSize() uses the stale size hint.
-	this->setMinimumSize(440, 140);
-	this->setMaximumSize(520, 340);
-	this->layout->activate();
-	this->adjustSize();
+	// state. The error state uses a fixed design size: adjustSize() cannot
+	// be trusted here because word-wrapped labels report stale size hints
+	// and long texts used to get clipped; the scroll area takes any
+	// overflow instead.
+	this->setFixedSize(460, 230);
 	this->download_finished_callback(1, "");
 }
 

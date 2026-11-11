@@ -59,7 +59,11 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 				}
 			}
 
-			shutdown_whisper_thread(gf);
+			// The currently loaded model is intentionally kept alive
+			// while the new one downloads: the filter keeps muting
+			// during the transfer, and a failed/refused download
+			// leaves the previous model untouched. The previous
+			// model is freed only right before the new one starts.
 
 			if (model_file_found == "") {
 				obs_log(LOG_WARNING, "Whisper model does not exist");
@@ -110,16 +114,46 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 								return;
 							}
 
+							// Free the previous model
+							// only now, immediately
+							// before starting the new
+							// one.
+							shutdown_whisper_thread(gf);
 							gf->whisper_model_path =
 								new_model_path;
 							start_whisper_thread_with_path(
 								gf, path);
 						} else {
-							obs_log(LOG_ERROR, "Model download failed");
+							obs_log(
+								LOG_ERROR,
+								"Model download failed, keeping the previously loaded model '%s'",
+								gf->whisper_model_path
+									.c_str());
+							// Revert the setting to
+							// the model that is
+							// actually loaded, so the
+							// next settings update or
+							// OBS restart does not try
+							// to download the failed
+							// model again.
+							obs_data_t *settings =
+								obs_source_get_settings(
+									gf->context);
+							if (settings != nullptr) {
+								obs_data_set_string(
+									settings,
+									"whisper_model_path",
+									gf->whisper_model_path
+										.c_str());
+								obs_data_release(
+									settings);
+							}
 						}
 					});
 			} else {
-				// Model exists, just load it
+				// Model exists, just load it: free the previous
+				// model immediately before starting the new one.
+				shutdown_whisper_thread(gf);
 				gf->whisper_model_path = new_model_path;
 				start_whisper_thread_with_path(gf, model_file_found);
 			}

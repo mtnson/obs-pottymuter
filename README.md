@@ -24,15 +24,22 @@ defaults tuned for Russian speech.
 
 - [x] Plugin renamed to **PottyMuter** (user-facing name, filter ID, packaging)
 - [x] CI builds feature branches so every push is verifiable
+- [x] Bug fixes for issues found with the original filter (validated model
+      downloads, duplicate-download dedupe, honest error reporting)
+- [x] Unicode-aware Cyrillic preprocessing (case folding, `ё`→`е`) before
+      the detection regex
+- [x] Protection against incompatible "pruned" models (detection by ggml
+      header, hiding from the model list, refusal before download/loading —
+      they crash upstream OBS builds on inference)
 - [ ] Russian profanity list by default (root-based regex with word-boundary
       handling; handles ё→е spelling variants, case, stretched forms)
-- [ ] Unicode-aware Cyrillic preprocessing (lowercasing, ё→е) before regex
 - [ ] Russian-tuned defaults: `Whisper Small q5 (181Mb)`, language `ru`,
       silence on match
 - [ ] Recognition accuracy and inference speed improvements for Russian
-- [ ] Bug fixes for issues found with the original filter
 - [ ] Curated model catalog (Russian-relevant models only)
 - [ ] Full `ru-RU` localization (alongside the upstream `en-US`)
+
+Details per version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Usage
 
@@ -43,13 +50,15 @@ defaults tuned for Russian speech.
 
 ## Download
 
-Check out the
-[latest releases](https://github.com/mtnson/obs-pottymuter/releases)
-for downloads and install instructions.
+Grab the latest build from the
+[releases page](https://github.com/mtnson/obs-pottymuter/releases):
+Windows builds come as a zip archive and an installer, in `generic`,
+`nvidia` (CUDA) and `amd` (ROCm) variants. Latest release:
+**[0.2.1](https://github.com/mtnson/obs-pottymuter/releases/tag/0.2.1)**.
 
 ## Requirements
 
-- OBS version 32+ → plugin versions 0.2.1+
+- OBS version 31+ → plugin versions 0.2.x (built and tested on OBS 31.1.1)
 - OBS version 30+ → plugin versions 0.0.4+
 - OBS version 29 → plugin versions 0.0.2+
 - OBS version 28 → plugin versions 0.0.1

@@ -10,6 +10,7 @@
 !.clang-format
 !.cmake-format.json
 !.gitignore
+!CHANGELOG.md
 !buildspec.json
 !CMakeLists.txt
 !CMakePresets.json

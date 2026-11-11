@@ -68,6 +68,11 @@ struct pottymuter_data {
 	/* whisper */
 	std::string whisper_model_path = "models/ggml-tiny.en.bin";
 	std::string whisper_model_file_currently_loaded;
+	// Set by update_whisper_model when a clicked model was refused
+	// (pruned vocabulary) and the setting was reverted to the loaded
+	// model; the model list modified callback consumes it and makes
+	// the properties view re-render so the dropdown shows the truth.
+	bool model_selection_refused = false;
 	struct whisper_context *whisper_context;
 	whisper_full_params whisper_params;
 

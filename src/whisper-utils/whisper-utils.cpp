@@ -2,9 +2,13 @@
 #include "plugin-support.h"
 #include "model-utils/ggml-header.h"
 #include "model-utils/model-downloader.h"
+#include "model-utils/vocab-probe.h"
 #include "whisper-processing.h"
 
 #include <obs-module.h>
+#include <obs-frontend-api.h>
+
+#include <QMessageBox>
 
 #include <filesystem>
 #include <fstream>
@@ -67,6 +71,68 @@ void update_whisper_model(struct pottymuter_data *gf, obs_data_t *s)
 
 			if (model_file_found == "") {
 				obs_log(LOG_WARNING, "Whisper model does not exist");
+
+				// OBS has already committed the clicked model
+				// into the settings, and this update runs on
+				// the UI thread BEFORE the properties view can
+				// re-render. Probe the remote ggml header
+				// synchronously (one RTT, at most the connect
+				// timeout on a dead network) and refuse pruned
+				// models right here: the setting reverts to the
+				// still-loaded model, the model_selection_refused
+				// flag tells the properties view to re-render,
+				// so the dropdown never shows the incompatible
+				// model and no download dialog opens at all.
+				std::string remote_bin_url;
+				for (const ModelFileDownloadInfo &file : model_info.files) {
+					if (file.url.size() >= 4 &&
+					    file.url.compare(file.url.size() - 4, 4,
+							     ".bin") == 0) {
+						remote_bin_url = file.url;
+						break;
+					}
+				}
+				if (!remote_bin_url.empty()) {
+					int64_t remote_n_vocab = -1;
+					if (probe_ggml_vocabulary(remote_bin_url,
+								  &remote_n_vocab,
+								  5) ==
+					    ProbeStatus::Pruned) {
+						obs_log(
+							LOG_ERROR,
+							"Model '%s' has a truncated vocabulary (n_vocab=%lld, expecting >= %lld); refusing to select it - the model is incompatible with whisper.cpp and would crash OBS. Reverting the selection to the loaded model '%s'",
+							new_model_path.c_str(),
+							(long long)remote_n_vocab,
+							(long long)kMinCompatibleWhisperVocab,
+							gf->whisper_model_path.c_str());
+						obs_data_t *current_settings =
+							obs_source_get_settings(
+								gf->context);
+						if (current_settings != nullptr) {
+							obs_data_set_string(
+								current_settings,
+								"whisper_model_path",
+								gf->whisper_model_path
+									.c_str());
+							obs_data_release(
+								current_settings);
+						}
+						gf->model_selection_refused = true;
+						QMessageBox::warning(
+							(QWidget *)obs_frontend_get_main_window(),
+							"Model incompatible",
+							QString(
+								"Incompatible model: truncated vocabulary (n_vocab=%1). The model stays unloaded, the previous model keeps working.")
+								.arg((long long)
+									remote_n_vocab),
+							QMessageBox::Ok);
+						return;
+					}
+					// Unknown/Compatible: proceed to the
+					// download as usual; the download dialog
+					// keeps its own header probe as
+					// defense-in-depth for flaky networks.
+				}
 
 				// OBS calls the filter update callback twice for a
 				// single settings change (an immediate visual

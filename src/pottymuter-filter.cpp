@@ -44,6 +44,24 @@
 
 void whisper_loop(void *data);
 
+// Modified callback of the whisper model list. update_whisper_model sets
+// model_selection_refused when a clicked model was refused (pruned
+// vocabulary) and the setting was reverted to the still-loaded model.
+// Returning true makes the properties view rebuild its widgets from the
+// current settings, so the dropdown shows the actually loaded model again
+// instead of the refused one.
+static bool model_selection_refused_modified(void *priv, obs_properties_t *props,
+					     obs_property_t *property,
+					     obs_data_t *settings)
+{
+	auto *gf = (struct pottymuter_data *)priv;
+	if (gf->model_selection_refused) {
+		gf->model_selection_refused = false;
+		return true;
+	}
+	return false;
+}
+
 void enumerate_gpu_devices(pottymuter_data *gf)
 {
 #ifdef WHISPER_DYNAMIC_BACKENDS
@@ -575,6 +593,12 @@ obs_properties_t *pottymuter_properties(void *data)
 	obs_property_t *whisper_models_list =
 		obs_properties_add_list(ppts, "whisper_model_path", MT_("whisper_model"),
 					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	// Re-render the view when a selection was refused by
+	// update_whisper_model (see model_selection_refused): the setting is
+	// reverted there, and this callback returning true makes the dropdown
+	// show the actually loaded model again.
+	obs_property_set_modified_callback2(whisper_models_list,
+					    model_selection_refused_modified, gf);
 	// Add models from models_info map. Models with a positively detected
 	// pruned vocabulary (see ggml-header.h) are hidden from the list:
 	// loading them crashes OBS (read_ggml_model_n_vocab refuses to trust

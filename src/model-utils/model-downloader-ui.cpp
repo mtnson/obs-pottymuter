@@ -310,8 +310,12 @@ void ModelDownloader::show_error(const std::string &reason)
 	// The constructor locked the dialog to (300x100) for the progress-only
 	// state; unlock it and shrink-to-fit so progress bar, error text and the
 	// close button are all fully visible instead of being squished/cut off.
-	this->setMinimumSize(300, 140);
-	this->setMaximumSize(500, 300);
+	// A wider minimum is needed because long refusal reasons wrap into
+	// several lines at 300px and get clipped; activate the layout before
+	// measuring, otherwise adjustSize() uses the stale size hint.
+	this->setMinimumSize(440, 140);
+	this->setMaximumSize(520, 340);
+	this->layout->activate();
 	this->adjustSize();
 	this->download_finished_callback(1, "");
 }

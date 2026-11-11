@@ -112,6 +112,7 @@ target_sources(
           src/model-utils/model-infos.cpp
           src/model-utils/model-find-utils.cpp
           src/model-utils/ggml-header.cpp
+          src/model-utils/vocab-probe.cpp
           src/model-utils/sha256.cpp
           src/whisper-utils/whisper-utils.cpp
           src/whisper-utils/whisper-processing.cpp
